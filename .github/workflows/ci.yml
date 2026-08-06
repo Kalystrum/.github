@@ -15,10 +15,10 @@ permissions:
     contents: read
 
 jobs:
-    # ===== GITHUB-HOSTED RUNNERS (Primary) =====
-    lint-github:
-        name: Lint (GitHub)
-        runs-on: ubuntu-latest
+    # ===== SELF-HOSTED RUNNERS (Primary) =====
+    lint-local:
+        name: Lint (Local)
+        runs-on: [self-hosted, macos]
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -36,7 +36,6 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
-                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -44,9 +43,9 @@ jobs:
             - run: npm run lint --if-present
               if: steps.detect.outputs.exists == 'true'
 
-    format-github:
-        name: Format (GitHub)
-        runs-on: ubuntu-latest
+    format-local:
+        name: Format (Local)
+        runs-on: [self-hosted, macos]
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -64,7 +63,6 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
-                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -72,9 +70,9 @@ jobs:
             - run: npm run format-check --if-present
               if: steps.detect.outputs.exists == 'true'
 
-    types-github:
-        name: Types (GitHub)
-        runs-on: ubuntu-latest
+    types-local:
+        name: Types (Local)
+        runs-on: [self-hosted, macos]
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -92,7 +90,6 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
-                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -100,9 +97,9 @@ jobs:
             - run: npm run typecheck --if-present
               if: steps.detect.outputs.exists == 'true'
 
-    tests-github:
-        name: Tests (GitHub)
-        runs-on: ubuntu-latest
+    tests-local:
+        name: Tests (Local)
+        runs-on: [self-hosted, macos]
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -120,7 +117,6 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
-                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -138,12 +134,12 @@ jobs:
                   path: coverage
                   if-no-files-found: ignore
 
-    # ===== SELF-HOSTED FALLBACK (Backup) =====
-    lint-fallback:
-        name: Lint (Fallback)
-        needs: lint-github
-        if: ${{ needs.lint-github.outputs.success != 'true' }}
-        runs-on: [self-hosted, macos]
+    # ===== GITHUB-HOSTED FALLBACK (Backup) =====
+    lint-github:
+        name: Lint (GitHub)
+        needs: lint-local
+        if: ${{ needs.lint-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
               with:
@@ -158,6 +154,7 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
+                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -166,13 +163,13 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
 
             - name: ✅ Fallback lint succeeded
-              run: echo "Lint passed on self-hosted runner (GitHub was unavailable)"
+              run: echo "Lint passed on GitHub runner (self-hosted was unavailable)"
 
-    format-fallback:
-        name: Format (Fallback)
-        needs: format-github
-        if: ${{ needs.format-github.outputs.success != 'true' }}
-        runs-on: [self-hosted, macos]
+    format-github:
+        name: Format (GitHub)
+        needs: format-local
+        if: ${{ needs.format-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
               with:
@@ -187,6 +184,7 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
+                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -195,13 +193,13 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
 
             - name: ✅ Fallback format check succeeded
-              run: echo "Format check passed on self-hosted runner (GitHub was unavailable)"
+              run: echo "Format check passed on GitHub runner (self-hosted was unavailable)"
 
-    types-fallback:
-        name: Types (Fallback)
-        needs: types-github
-        if: ${{ needs.types-github.outputs.success != 'true' }}
-        runs-on: [self-hosted, macos]
+    types-github:
+        name: Types (GitHub)
+        needs: types-local
+        if: ${{ needs.types-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
               with:
@@ -216,6 +214,7 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
+                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -224,13 +223,13 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
 
             - name: ✅ Fallback typecheck succeeded
-              run: echo "Typecheck passed on self-hosted runner (GitHub was unavailable)"
+              run: echo "Typecheck passed on GitHub runner (self-hosted was unavailable)"
 
-    tests-fallback:
-        name: Tests (Fallback)
-        needs: tests-github
-        if: ${{ needs.tests-github.outputs.success != 'true' }}
-        runs-on: [self-hosted, macos]
+    tests-github:
+        name: Tests (GitHub)
+        needs: tests-local
+        if: ${{ needs.tests-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
               with:
@@ -245,6 +244,7 @@ jobs:
               if: steps.detect.outputs.exists == 'true'
               with:
                   node-version: 22
+                  cache: npm
 
             - run: npm ci
               if: steps.detect.outputs.exists == 'true'
@@ -263,21 +263,21 @@ jobs:
                   if-no-files-found: ignore
 
             - name: ✅ Fallback tests succeeded
-              run: echo "Tests passed on self-hosted runner (GitHub was unavailable)"
+              run: echo "Tests passed on GitHub runner (self-hosted was unavailable)"
 
     # ===== FINAL BUILD (After All Checks) =====
     build:
         name: Build
         needs:
             [
+                lint-local,
+                format-local,
+                types-local,
+                tests-local,
                 lint-github,
                 format-github,
                 types-github,
                 tests-github,
-                lint-fallback,
-                format-fallback,
-                types-fallback,
-                tests-fallback,
             ]
         if: ${{ !failure() }}
         runs-on: ubuntu-latest

@@ -13,10 +13,10 @@ permissions:
     contents: read
 
 jobs:
-    # ===== GITHUB-HOSTED RUNNER (Primary) =====
-    production-source-github:
-        name: Branch policy (GitHub)
-        runs-on: ubuntu-latest
+    # ===== SELF-HOSTED RUNNER (Primary) =====
+    production-source-local:
+        name: Branch policy (Local)
+        runs-on: [self-hosted, macos]
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -33,12 +33,12 @@ jobs:
                       exit 1
                   fi
 
-    # ===== SELF-HOSTED FALLBACK (Backup) =====
-    production-source-fallback:
-        name: Branch policy (Fallback)
-        needs: production-source-github
-        if: ${{ needs.production-source-github.outputs.success != 'true' }}
-        runs-on: [self-hosted, macos]
+    # ===== GITHUB-HOSTED FALLBACK (Backup) =====
+    production-source-github:
+        name: Branch policy (GitHub)
+        needs: production-source-local
+        if: ${{ needs.production-source-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
         steps:
             - name: Ensure production only receives develop or release branches
               env:

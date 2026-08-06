@@ -22,13 +22,13 @@ permissions:
     checks: read
 
 jobs:
-    # ===== GITHUB-HOSTED RUNNER (Primary) =====
-    generate-description-github:
-        name: Generate PR description (GitHub)
+    # ===== SELF-HOSTED RUNNER (Primary) =====
+    generate-description-local:
+        name: Generate PR description (Local)
         # Fork PRs don't get repo secrets on the `pull_request` event (this repo is public),
         # so the API call below would just fail with a 401. Skip them instead of burning a red X.
         if: github.event.pull_request.head.repo.full_name == github.repository
-        runs-on: ubuntu-latest
+        runs-on: [self-hosted, macos]
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -278,12 +278,12 @@ jobs:
               if: steps.compare.outputs.changed == 'false'
               run: echo "Generated PR body matches the existing description."
 
-    # ===== SELF-HOSTED FALLBACK (Backup) =====
-    generate-description-fallback:
-        name: Generate PR description (Fallback)
-        needs: generate-description-github
-        if: ${{ needs.generate-description-github.outputs.success != 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
-        runs-on: [self-hosted, macos]
+    # ===== GITHUB-HOSTED FALLBACK (Backup) =====
+    generate-description-github:
+        name: Generate PR description (GitHub)
+        needs: generate-description-local
+        if: ${{ needs.generate-description-local.outputs.success != 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+        runs-on: ubuntu-latest
         env:
             GIT_CREDENTIALS: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
         steps:
@@ -526,4 +526,4 @@ jobs:
 
             - name: PR description already current
               if: steps.compare.outputs.changed == 'false'
-              run: echo "✅ Generated PR body matches the existing description (Fallback)."
+              run: echo "✅ Generated PR body matches the existing description (GitHub fallback)."
