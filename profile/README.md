@@ -45,9 +45,6 @@
     <ul>
       <li>🔐 Vault - Secure credential management</li>
       <li>📊 Atrium - Analytics & insights platform</li>
-      <li>⚡ Relay - Event processing & distribution</li>
-      <li>🔗 Portal - Central management hub</li>
-      <li>🛡️ Security Tools & Utilities</li>
     </ul>
   </div>
 
