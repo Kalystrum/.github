@@ -6,6 +6,7 @@ on:
     push:
         branches: [production, develop]
     workflow_call:
+    workflow_dispatch:
 
 concurrency:
     group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -19,6 +20,7 @@ jobs:
     lint-local:
         name: Lint (Local)
         runs-on: [self-hosted, macos]
+        timeout-minutes: 30
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -43,9 +45,18 @@ jobs:
             - run: npm run lint --if-present
               if: steps.detect.outputs.exists == 'true'
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     format-local:
         name: Format (Local)
         runs-on: [self-hosted, macos]
+        timeout-minutes: 30
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -70,9 +81,18 @@ jobs:
             - run: npm run format-check --if-present
               if: steps.detect.outputs.exists == 'true'
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     types-local:
         name: Types (Local)
         runs-on: [self-hosted, macos]
+        timeout-minutes: 30
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -97,9 +117,18 @@ jobs:
             - run: npm run typecheck --if-present
               if: steps.detect.outputs.exists == 'true'
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     tests-local:
         name: Tests (Local)
         runs-on: [self-hosted, macos]
+        timeout-minutes: 30
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -134,12 +163,21 @@ jobs:
                   path: coverage
                   if-no-files-found: ignore
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     # ===== GITHUB-HOSTED FALLBACK (Backup) =====
     lint-github:
         name: Lint (GitHub)
         needs: lint-local
         if: ${{ needs.lint-local.outputs.success != 'true' }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         steps:
             - uses: actions/checkout@v5
               with:
@@ -165,11 +203,20 @@ jobs:
             - name: ✅ Fallback lint succeeded
               run: echo "Lint passed on GitHub runner (self-hosted was unavailable)"
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     format-github:
         name: Format (GitHub)
         needs: format-local
         if: ${{ needs.format-local.outputs.success != 'true' }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         steps:
             - uses: actions/checkout@v5
               with:
@@ -195,11 +242,20 @@ jobs:
             - name: ✅ Fallback format check succeeded
               run: echo "Format check passed on GitHub runner (self-hosted was unavailable)"
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     types-github:
         name: Types (GitHub)
         needs: types-local
         if: ${{ needs.types-local.outputs.success != 'true' }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         steps:
             - uses: actions/checkout@v5
               with:
@@ -225,11 +281,20 @@ jobs:
             - name: ✅ Fallback typecheck succeeded
               run: echo "Typecheck passed on GitHub runner (self-hosted was unavailable)"
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     tests-github:
         name: Tests (GitHub)
         needs: tests-local
         if: ${{ needs.tests-local.outputs.success != 'true' }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         steps:
             - uses: actions/checkout@v5
               with:
@@ -265,6 +330,14 @@ jobs:
             - name: ✅ Fallback tests succeeded
               run: echo "Tests passed on GitHub runner (self-hosted was unavailable)"
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     # ===== FINAL BUILD (After All Checks) =====
     build:
         name: Build
@@ -281,6 +354,7 @@ jobs:
             ]
         if: ${{ !failure() }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         environment:
             name: ${{ github.ref == 'refs/heads/production' && 'production' || 'development' }}
         steps:
@@ -307,3 +381,11 @@ jobs:
 
             - name: ✅ Build succeeded
               run: echo "Build completed successfully!"
+
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi

@@ -4,6 +4,7 @@ on:
     pull_request:
         branches: [production]
     workflow_call:
+    workflow_dispatch:
 
 concurrency:
     group: branch-policy-${{ github.event.pull_request.number }}
@@ -17,6 +18,7 @@ jobs:
     production-source-local:
         name: Branch policy (Local)
         runs-on: [self-hosted, macos]
+        timeout-minutes: 30
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -33,12 +35,21 @@ jobs:
                       exit 1
                   fi
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     # ===== GITHUB-HOSTED FALLBACK (Backup) =====
     production-source-github:
         name: Branch policy (GitHub)
         needs: production-source-local
         if: ${{ needs.production-source-local.outputs.success != 'true' }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         steps:
             - name: Ensure production only receives develop or release branches
               env:
@@ -50,4 +61,12 @@ jobs:
                       echo "❌ Pull requests into production must come from 'develop' or a 'release/*' branch."
                       echo "Open your pull request against develop first, then merge develop (or a release branch) into production."
                       exit 1
+                  fi
+
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
                   fi

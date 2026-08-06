@@ -11,6 +11,7 @@ on:
                 required: true
             MODEL:
                 required: true
+    workflow_dispatch:
 
 concurrency:
     group: pr-description-${{ github.event.pull_request.number }}
@@ -29,6 +30,7 @@ jobs:
         # so the API call below would just fail with a 401. Skip them instead of burning a red X.
         if: github.event.pull_request.head.repo.full_name == github.repository
         runs-on: [self-hosted, macos]
+        timeout-minutes: 30
         continue-on-error: true
         outputs:
             success: ${{ job.status == 'success' }}
@@ -278,12 +280,21 @@ jobs:
               if: steps.compare.outputs.changed == 'false'
               run: echo "Generated PR body matches the existing description."
 
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
     # ===== GITHUB-HOSTED FALLBACK (Backup) =====
     generate-description-github:
         name: Generate PR description (GitHub)
         needs: generate-description-local
         if: ${{ needs.generate-description-local.outputs.success != 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         env:
             GIT_CREDENTIALS: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
         steps:
@@ -527,3 +538,11 @@ jobs:
             - name: PR description already current
               if: steps.compare.outputs.changed == 'false'
               run: echo "✅ Generated PR body matches the existing description (GitHub fallback)."
+
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
