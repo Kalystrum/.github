@@ -19,7 +19,7 @@ jobs:
     # ===== SELF-HOSTED RUNNERS (Primary) =====
     lint-local:
         name: Lint (Local)
-        runs-on: [macos-ci, ubuntu-latest]
+        runs-on: [self-hosted, ubuntu-latest]
         timeout-minutes: 30
         continue-on-error: true
         outputs:
@@ -55,7 +55,7 @@ jobs:
 
     format-local:
         name: Format (Local)
-        runs-on: [macos-ci, ubuntu-latest]
+        runs-on: [self-hosted, ubuntu-latest]
         timeout-minutes: 30
         continue-on-error: true
         outputs:
@@ -91,7 +91,7 @@ jobs:
 
     types-local:
         name: Types (Local)
-        runs-on: [macos-ci, ubuntu-latest]
+        runs-on: [self-hosted, ubuntu-latest]
         timeout-minutes: 30
         continue-on-error: true
         outputs:
@@ -127,7 +127,7 @@ jobs:
 
     tests-local:
         name: Tests (Local)
-        runs-on: [macos-ci, ubuntu-latest]
+        runs-on: [self-hosted, ubuntu-latest]
         timeout-minutes: 30
         continue-on-error: true
         outputs:

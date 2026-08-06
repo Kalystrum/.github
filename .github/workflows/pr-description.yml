@@ -29,7 +29,7 @@ jobs:
         # Fork PRs don't get repo secrets on the `pull_request` event (this repo is public),
         # so the API call below would just fail with a 401. Skip them instead of burning a red X.
         if: github.event.pull_request.head.repo.full_name == github.repository
-        runs-on: [macos-pr, ubuntu-latest]
+        runs-on: [self-hosted, ubuntu-latest]
         timeout-minutes: 30
         continue-on-error: true
         outputs:
