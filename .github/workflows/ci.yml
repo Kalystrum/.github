@@ -1,0 +1,309 @@
+name: status-checks
+
+on:
+    pull_request:
+        branches: [develop, production, release/**]
+    push:
+        branches: [production, develop]
+    workflow_call:
+
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    # ===== GITHUB-HOSTED RUNNERS (Primary) =====
+    lint-github:
+        name: Lint (GitHub)
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        outputs:
+            success: ${{ job.status == 'success' }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run lint --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+    format-github:
+        name: Format (GitHub)
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        outputs:
+            success: ${{ job.status == 'success' }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run format-check --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+    types-github:
+        name: Types (GitHub)
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        outputs:
+            success: ${{ job.status == 'success' }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run typecheck --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+    tests-github:
+        name: Tests (GitHub)
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        outputs:
+            success: ${{ job.status == 'success' }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run test --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run test:coverage --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - uses: actions/upload-artifact@v4
+              if: steps.detect.outputs.exists == 'true' && hashFiles('coverage/**') != ''
+              with:
+                  name: coverage-report
+                  path: coverage
+                  if-no-files-found: ignore
+
+    # ===== SELF-HOSTED FALLBACK (Backup) =====
+    lint-fallback:
+        name: Lint (Fallback)
+        needs: lint-github
+        if: ${{ needs.lint-github.outputs.success != 'true' }}
+        runs-on: [self-hosted, macos]
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run lint --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - name: ✅ Fallback lint succeeded
+              run: echo "Lint passed on self-hosted runner (GitHub was unavailable)"
+
+    format-fallback:
+        name: Format (Fallback)
+        needs: format-github
+        if: ${{ needs.format-github.outputs.success != 'true' }}
+        runs-on: [self-hosted, macos]
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run format-check --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - name: ✅ Fallback format check succeeded
+              run: echo "Format check passed on self-hosted runner (GitHub was unavailable)"
+
+    types-fallback:
+        name: Types (Fallback)
+        needs: types-github
+        if: ${{ needs.types-github.outputs.success != 'true' }}
+        runs-on: [self-hosted, macos]
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run typecheck --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - name: ✅ Fallback typecheck succeeded
+              run: echo "Typecheck passed on self-hosted runner (GitHub was unavailable)"
+
+    tests-fallback:
+        name: Tests (Fallback)
+        needs: tests-github
+        if: ${{ needs.tests-github.outputs.success != 'true' }}
+        runs-on: [self-hosted, macos]
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run test --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run test:coverage --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - uses: actions/upload-artifact@v4
+              if: steps.detect.outputs.exists == 'true' && hashFiles('coverage/**') != ''
+              with:
+                  name: coverage-report
+                  path: coverage
+                  if-no-files-found: ignore
+
+            - name: ✅ Fallback tests succeeded
+              run: echo "Tests passed on self-hosted runner (GitHub was unavailable)"
+
+    # ===== FINAL BUILD (After All Checks) =====
+    build:
+        name: Build
+        needs:
+            [
+                lint-github,
+                format-github,
+                types-github,
+                tests-github,
+                lint-fallback,
+                format-fallback,
+                types-fallback,
+                tests-fallback,
+            ]
+        if: ${{ !failure() }}
+        runs-on: ubuntu-latest
+        environment:
+            name: ${{ github.ref == 'refs/heads/production' && 'production' || 'development' }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run build --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - name: ✅ Build succeeded
+              run: echo "Build completed successfully!"
