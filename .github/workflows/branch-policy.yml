@@ -17,7 +17,7 @@ jobs:
     # ===== SELF-HOSTED RUNNER (Primary) =====
     production-source-local:
         name: Branch policy (Local)
-        runs-on: [self-hosted, ubuntu-latest]
+        runs-on: [self-hosted]
         timeout-minutes: 30
         continue-on-error: true
         outputs:
