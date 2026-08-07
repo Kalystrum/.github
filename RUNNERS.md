@@ -11,7 +11,7 @@ Complete guide for setting up, running, and maintaining **9 parallel 100% isolat
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center;">
         <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-            <div style="font-size: 32px; font-weight: bold; color: #98c379;">9</div>
+            <div style="font-size: 32px; font-weight: bold; color: #98c379;">12</div>
             <div style="font-size: 13px; color: #abb2bf;">Total Parallel Runners</div>
         </div>
         <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
@@ -35,8 +35,8 @@ Complete guide for setting up, running, and maintaining **9 parallel 100% isolat
     <h3 style="margin-top: 0; color: #007bff;">📋 Workload Pools Overview</h3>
     <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px; margin-top: 15px;">
         <div style="border: 2px solid #28a745; background: #ffffff; padding: 15px; border-radius: 8px; flex: 1; min-width: 200px;">
-            <strong style="color: #28a745; font-size: 16px;">🟢 CI Runners (3)</strong><br />
-            <code>macos-ci-1</code>, <code>macos-ci-2</code>, <code>macos-ci-3</code><br />
+            <strong style="color: #28a745; font-size: 16px;">🟢 CI Runners (6)</strong><br />
+            <code>macos-ci-1</code> .. <code>macos-ci-6</code><br />
             <small style="color: #6c757d;">Label: <code>[self-hosted, macos-ci]</code></small><br />
             <small>↳ Runs Lint, Format, Types, Tests, Build</small>
         </div>
