@@ -16,7 +16,7 @@ permissions:
     contents: read
 
 jobs:
-    # ===== SELF-HOSTED RUNNERS (Primary) =====
+    # ===== PHASE 1: RUN ALL LOCAL CHECKS IN PARALLEL =====
     lint-local:
         name: Lint (Local)
         runs-on: [self-hosted]
@@ -25,7 +25,7 @@ jobs:
         outputs:
             success: ${{ job.status == 'success' }}
         steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v4
               with:
                   submodules: recursive
                   token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
@@ -61,7 +61,7 @@ jobs:
         outputs:
             success: ${{ job.status == 'success' }}
         steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v4
               with:
                   submodules: recursive
                   token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
@@ -97,7 +97,7 @@ jobs:
         outputs:
             success: ${{ job.status == 'success' }}
         steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v4
               with:
                   submodules: recursive
                   token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
@@ -133,7 +133,7 @@ jobs:
         outputs:
             success: ${{ job.status == 'success' }}
         steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v4
               with:
                   submodules: recursive
                   token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
@@ -171,190 +171,18 @@ jobs:
                     exit 1
                   fi
 
-    # ===== GITHUB-HOSTED FALLBACK (Backup) =====
-    lint-github:
-        name: Lint (GitHub)
-        needs: lint-local
-        if: ${{ needs.lint-local.outputs.success != 'true' }}
-        runs-on: ubuntu-latest
+    # ===== PHASE 2A: IF ALL LOCAL CHECKS PASS → RUN LOCAL BUILD =====
+    build-local:
+        name: Build (Local)
+        needs: [lint-local, format-local, types-local, tests-local]
+        if: ${{ needs.lint-local.outputs.success == 'true' && needs.format-local.outputs.success == 'true' && needs.types-local.outputs.success == 'true' && needs.tests-local.outputs.success == 'true' }}
+        runs-on: [self-hosted]
         timeout-minutes: 30
+        continue-on-error: true
+        outputs:
+            success: ${{ job.status == 'success' }}
         steps:
-            - uses: actions/checkout@v5
-              with:
-                  submodules: recursive
-                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
-
-            - name: Detect Node project
-              id: detect
-              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-            - uses: actions/setup-node@v4
-              if: steps.detect.outputs.exists == 'true'
-              with:
-                  node-version: 22
-
-            - run: npm ci
-              if: steps.detect.outputs.exists == 'true'
-
-            - run: npm run lint --if-present
-              if: steps.detect.outputs.exists == 'true'
-
-            - name: ✅ Fallback lint succeeded
-              run: echo "Lint passed on GitHub runner (self-hosted was unavailable)"
-
-            - name: ⏱️ Job timeout check
-              if: always()
-              run: |
-                  if [ "${{ job.status }}" = "cancelled" ]; then
-                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
-                    exit 1
-                  fi
-
-    format-github:
-        name: Format (GitHub)
-        needs: format-local
-        if: ${{ needs.format-local.outputs.success != 'true' }}
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        steps:
-            - uses: actions/checkout@v5
-              with:
-                  submodules: recursive
-                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
-
-            - name: Detect Node project
-              id: detect
-              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-            - uses: actions/setup-node@v4
-              if: steps.detect.outputs.exists == 'true'
-              with:
-                  node-version: 22
-
-            - run: npm ci
-              if: steps.detect.outputs.exists == 'true'
-
-            - run: npm run format-check --if-present
-              if: steps.detect.outputs.exists == 'true'
-
-            - name: ✅ Fallback format check succeeded
-              run: echo "Format check passed on GitHub runner (self-hosted was unavailable)"
-
-            - name: ⏱️ Job timeout check
-              if: always()
-              run: |
-                  if [ "${{ job.status }}" = "cancelled" ]; then
-                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
-                    exit 1
-                  fi
-
-    types-github:
-        name: Types (GitHub)
-        needs: types-local
-        if: ${{ needs.types-local.outputs.success != 'true' }}
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        steps:
-            - uses: actions/checkout@v5
-              with:
-                  submodules: recursive
-                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
-
-            - name: Detect Node project
-              id: detect
-              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-            - uses: actions/setup-node@v4
-              if: steps.detect.outputs.exists == 'true'
-              with:
-                  node-version: 22
-
-            - run: npm ci
-              if: steps.detect.outputs.exists == 'true'
-
-            - run: npm run typecheck --if-present
-              if: steps.detect.outputs.exists == 'true'
-
-            - name: ✅ Fallback typecheck succeeded
-              run: echo "Typecheck passed on GitHub runner (self-hosted was unavailable)"
-
-            - name: ⏱️ Job timeout check
-              if: always()
-              run: |
-                  if [ "${{ job.status }}" = "cancelled" ]; then
-                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
-                    exit 1
-                  fi
-
-    tests-github:
-        name: Tests (GitHub)
-        needs: tests-local
-        if: ${{ needs.tests-local.outputs.success != 'true' }}
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        steps:
-            - uses: actions/checkout@v5
-              with:
-                  submodules: recursive
-                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
-
-            - name: Detect Node project
-              id: detect
-              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-            - uses: actions/setup-node@v4
-              if: steps.detect.outputs.exists == 'true'
-              with:
-                  node-version: 22
-
-            - run: npm ci
-              if: steps.detect.outputs.exists == 'true'
-
-            - run: npm run test --if-present
-              if: steps.detect.outputs.exists == 'true'
-
-            - run: npm run test:coverage --if-present
-              if: steps.detect.outputs.exists == 'true'
-
-            - uses: actions/upload-artifact@v4
-              if: steps.detect.outputs.exists == 'true' && hashFiles('coverage/**') != ''
-              with:
-                  name: coverage-report
-                  path: coverage
-                  if-no-files-found: ignore
-
-            - name: ✅ Fallback tests succeeded
-              run: echo "Tests passed on GitHub runner (self-hosted was unavailable)"
-
-            - name: ⏱️ Job timeout check
-              if: always()
-              run: |
-                  if [ "${{ job.status }}" = "cancelled" ]; then
-                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
-                    exit 1
-                  fi
-
-    # ===== FINAL BUILD (After All Checks) =====
-    build:
-        name: Build
-        needs:
-            [
-                lint-local,
-                format-local,
-                types-local,
-                tests-local,
-                lint-github,
-                format-github,
-                types-github,
-                tests-github,
-            ]
-        if: ${{ !failure() }}
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        environment:
-            name: ${{ github.ref == 'refs/heads/production' && 'production' || 'development' }}
-        steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v4
               with:
                   submodules: recursive
                   token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
@@ -377,8 +205,114 @@ jobs:
             - run: npm run build --if-present
               if: steps.detect.outputs.exists == 'true'
 
-            - name: ✅ Build succeeded
-              run: echo "Build completed successfully!"
+            - name: ✅ Local build succeeded
+              run: echo "Build completed successfully on local runner!"
+
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
+    # ===== PHASE 2B: IF ANY LOCAL CHECK FAILS → RUN FULL GITHUB CI (checks + build) =====
+    ci-github:
+        name: Full CI (GitHub Fallback)
+        needs: [lint-local, format-local, types-local, tests-local]
+        if: ${{ needs.lint-local.outputs.success != 'true' || needs.format-local.outputs.success != 'true' || needs.types-local.outputs.success != 'true' || needs.tests-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run lint --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run format-check --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run typecheck --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run test --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run test:coverage --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - uses: actions/upload-artifact@v4
+              if: steps.detect.outputs.exists == 'true' && hashFiles('coverage/**') != ''
+              with:
+                  name: coverage-report
+                  path: coverage
+                  if-no-files-found: ignore
+
+            - run: npm rebuild
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run build --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - name: ✅ Full CI passed on GitHub runner
+              run: echo "All checks and build completed successfully on GitHub fallback runner!"
+
+            - name: ⏱️ Job timeout check
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" = "cancelled" ]; then
+                    echo "❌ Job was cancelled due to timeout (30 minutes exceeded)"
+                    exit 1
+                  fi
+
+    # ===== PHASE 3: IF LOCAL BUILD FAILS → RUN GITHUB BUILD ONLY =====
+    build-github:
+        name: Build (GitHub Fallback)
+        needs: [build-local]
+        if: ${{ needs.build-local.outputs.success != 'true' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  submodules: recursive
+                  token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
+
+            - name: Detect Node project
+              id: detect
+              run: echo "exists=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/setup-node@v4
+              if: steps.detect.outputs.exists == 'true'
+              with:
+                  node-version: 22
+
+            - run: npm ci
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm rebuild
+              if: steps.detect.outputs.exists == 'true'
+
+            - run: npm run build --if-present
+              if: steps.detect.outputs.exists == 'true'
+
+            - name: ✅ Build passed on GitHub runner
+              run: echo "Build completed successfully on GitHub fallback runner!"
 
             - name: ⏱️ Job timeout check
               if: always()
