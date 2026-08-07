@@ -1,723 +1,399 @@
-# 🚀 Self-Hosted Runners Setup & Reference
+# 🚀 Kalystrum Isolated Ephemeral Runners Setup & Reference
 
-Complete guide for setting up, running, and maintaining 9 parallel self-hosted runners for Kalystrum organization.
-
----
-
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Why 9 Runners?](#why-9-runners)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Setup Instructions](#setup-instructions)
-- [Running the Runners](#running-the-runners)
-- [Quick Commands](#quick-commands)
-- [Workflow Configuration](#workflow-configuration)
-- [Troubleshooting](#troubleshooting)
-- [Maintenance](#maintenance)
+Complete guide for setting up, running, and maintaining **9 parallel 100% isolated ephemeral self-hosted runners** for the **Kalystrum** organization.
 
 ---
 
-## Overview
-
-Sets up **9 parallel self-hosted runners** on your macOS laptop to run GitHub Actions workflows:
-
-- **3 CI Runners** - lint, format, types, tests (parallel execution)
-- **3 PR Runners** - PR description generation
-- **3 Deploy Runners** - Cloudflare deployments
-
-```html
-<div
-    style="text-align: center; font-family: monospace; background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;"
->
-    <h3>Your macOS Laptop Architecture</h3>
-    <div
-        style="display: flex; justify-content: space-around; margin-top: 20px;"
-    >
-        <div
-            style="border: 2px solid #4CAF50; padding: 15px; border-radius: 5px; flex: 1; margin: 5px;"
-        >
-            <strong style="color: #4CAF50;">CI Runners (3)</strong><br />
-            macos-ci-1<br />
-            macos-ci-2<br />
-            macos-ci-3<br />
-            <small>↳ Lint, Format, Types, Tests</small>
-        </div>
-        <div
-            style="border: 2px solid #2196F3; padding: 15px; border-radius: 5px; flex: 1; margin: 5px;"
-        >
-            <strong style="color: #2196F3;">PR Runners (3)</strong><br />
-            macos-pr-1<br />
-            macos-pr-2<br />
-            macos-pr-3<br />
-            <small>↳ PR Descriptions</small>
-        </div>
-        <div
-            style="border: 2px solid #FF9800; padding: 15px; border-radius: 5px; flex: 1; margin: 5px;"
-        >
-            <strong style="color: #FF9800;">Deploy Runners (3)</strong><br />
-            macos-deploy-1<br />
-            macos-deploy-2<br />
-            macos-deploy-3<br />
-            <small>↳ Cloudflare Deploy</small>
-        </div>
+<div style="background: linear-gradient(135deg, #1e1e2e 0%, #2d2b55 100%); color: #ffffff; padding: 25px; border-radius: 12px; margin: 20px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 20px;">
+        <h2 style="margin: 0; color: #61afef; font-size: 22px;">⚡ Architecture & Status Dashboard</h2>
+        <span style="background: #28a745; color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase;">100% Isolated & Ephemeral</span>
     </div>
-    <p style="margin-top: 20px; color: #666;">
-        All connected to: github.com/Kalystrum
-    </p>
-</div>
-```
-
----
-
-## Why 9 Runners?
-
-### Performance Comparison
-
-**Before (Sequential - Slow):**
-
-```
-Lint (30s) → Format (30s) → Types (30s) → Tests (60s) → Build (30s)
-= 180 seconds total ⏱️
-```
-
-**After (Parallel - Fast):**
-
-```
-CI-1: Lint (30s)    ┐
-CI-2: Format (30s)  ├─ All run at same time
-CI-3: Types (30s)   │
-CI-1: Tests (60s)   ┘
-Build (30s)
-= 90 seconds total ⚡
-
-Result: 50% FASTER! 🎉
-```
-
-### Benefits
-
-- ✅ **50% faster CI/CD** - parallel job execution
-- ✅ **Better resource utilization** - all 9 runners active simultaneously
-- ✅ **Load balancing** - jobs distributed across runners
-- ✅ **Reliable fallback** - if one runner down, 8 others still working
-- ✅ **No queuing** - jobs picked up immediately
-
----
-
-## Architecture
-
-### Runner Directory Structure
-
-```
-/Users/ankitanand/Ransh-Dev/github-runners/
-├── runner-ci-1/          ← CI runner 1
-├── runner-ci-2/          ← CI runner 2
-├── runner-ci-3/          ← CI runner 3
-├── runner-pr-1/          ← PR runner 1
-├── runner-pr-2/          ← PR runner 2
-├── runner-pr-3/          ← PR runner 3
-├── runner-deploy-1/      ← Deploy runner 1
-├── runner-deploy-2/      ← Deploy runner 2
-├── runner-deploy-3/      ← Deploy runner 3
-└── logs/                 ← Runner logs
-    ├── runner-ci-1.log
-    ├── runner-ci-2.log
-    ├── runner-pr-1.log
-    ├── runner-deploy-1.log
-    └── ... (9 total)
-```
-
-### How It Works
-
-1. **Workflow triggered** on GitHub
-2. **Job requests `self-hosted` label**
-3. **GitHub checks available runners** with that label
-4. **First available runner picks up the job**
-5. **Runners execute in parallel** → all 9 can run simultaneously
-6. **Job completes** → runner becomes available for next job
-7. **Fallback to GitHub-hosted** if all runners busy
-
-```html
-<div
-    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin: 20px 0;"
->
-    <h3 style="margin-top: 0;">📊 Status Dashboard</h3>
-    <div
-        style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 20px 0;"
-    >
-        <div
-            style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;"
-        >
-            <div style="font-size: 28px; font-weight: bold;">9</div>
-            <div style="font-size: 13px; opacity: 0.9;">Total Runners</div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center;">
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 32px; font-weight: bold; color: #98c379;">9</div>
+            <div style="font-size: 13px; color: #abb2bf;">Total Parallel Runners</div>
         </div>
-        <div
-            style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;"
-        >
-            <div style="font-size: 28px; font-weight: bold;">1-2GB</div>
-            <div style="font-size: 13px; opacity: 0.9;">RAM Usage</div>
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 32px; font-weight: bold; color: #e5c07b;">0 Host Locks</div>
+            <div style="font-size: 13px; color: #abb2bf;">Isolated $HOME per Runner</div>
         </div>
-        <div
-            style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;"
-        >
-            <div style="font-size: 28px; font-weight: bold;">50%</div>
-            <div style="font-size: 13px; opacity: 0.9;">Speed Gain</div>
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 32px; font-weight: bold; color: #61afef;">Auto Token</div>
+            <div style="font-size: 13px; color: #abb2bf;">Generated via GitHub CLI</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 32px; font-weight: bold; color: #c678dd;">Auto Clean</div>
+            <div style="font-size: 13px; color: #abb2bf;">Auto-Wipes Workspace Per Job</div>
         </div>
     </div>
 </div>
+
+---
+
+<div style="background: #f8f9fa; border-left: 5px solid #007bff; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #007bff;">📋 Workload Pools Overview</h3>
+    <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px; margin-top: 15px;">
+        <div style="border: 2px solid #28a745; background: #ffffff; padding: 15px; border-radius: 8px; flex: 1; min-width: 200px;">
+            <strong style="color: #28a745; font-size: 16px;">🟢 CI Runners (3)</strong><br />
+            <code>macos-ci-1</code>, <code>macos-ci-2</code>, <code>macos-ci-3</code><br />
+            <small style="color: #6c757d;">Label: <code>[self-hosted, macos-ci]</code></small><br />
+            <small>↳ Runs Lint, Format, Types, Tests, Build</small>
+        </div>
+        <div style="border: 2px solid #17a2b8; background: #ffffff; padding: 15px; border-radius: 8px; flex: 1; min-width: 200px;">
+            <strong style="color: #17a2b8; font-size: 16px;">🔵 PR Runners (3)</strong><br />
+            <code>macos-pr-1</code>, <code>macos-pr-2</code>, <code>macos-pr-3</code><br />
+            <small style="color: #6c757d;">Label: <code>[self-hosted, macos-pr]</code></small><br />
+            <small>↳ Runs Branch Policy & PR Descriptions</small>
+        </div>
+        <div style="border: 2px solid #fd7e14; background: #ffffff; padding: 15px; border-radius: 8px; flex: 1; min-width: 200px;">
+            <strong style="color: #fd7e14; font-size: 16px;">🟠 Deploy Runners (3)</strong><br />
+            <code>macos-deploy-1</code>, <code>macos-deploy-2</code>, <code>macos-deploy-3</code><br />
+            <small style="color: #6c757d;">Label: <code>[self-hosted, macos-deploy]</code></small><br />
+            <small>↳ Runs Cloudflare Deployments</small>
+        </div>
+    </div>
+</div>
+
+---
+
+## 🛠️ Prerequisites & Requirements
+
+<div style="background: #ffffff; border: 1px solid #e1e4e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <h3 style="margin-top: 0; color: #24292e;">System & Tooling Requirements</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background: #f6f8fa; text-align: left;">
+                <th style="padding: 10px; border-bottom: 2px solid #e1e4e8;">Requirement</th>
+                <th style="padding: 10px; border-bottom: 2px solid #e1e4e8;">Specification</th>
+                <th style="padding: 10px; border-bottom: 2px solid #e1e4e8;">Purpose</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><strong>Host OS</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">macOS (M1/M2/M3 ARM64 or Intel)</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">Host environment for runner daemon loops</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><strong>GitHub CLI</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><code>brew install gh</code></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">Auto-issues registration tokens via <code>gh api</code></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><strong>CLI Scopes</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><code>admin:org</code>, <code>repo</code>, <code>workflow</code></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">Authorizes token creation for Kalystrum org</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><strong>Runner Package</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><code>actions-runner-osx-arm64.tar.gz</code></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">Official GitHub Actions self-hosted runner binaries</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;"><strong>Docker Engine</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">Docker Desktop / OrbStack (Optional)</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e1e4e8;">Supported if workflows specify <code>container:</code> execution</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+---
+
+## 🏗️ Directory Architecture
+
+```text
+/Users/ankitanand/Ransh-Dev/kalystrum-runners/
+├── runner-ci-1/                ← CI Runner 1
+│   ├── home/                   ← Isolated $HOME (prevents host ~/.gitconfig locks)
+│   └── .env                    ← HOME=/Users/ankitanand/Ransh-Dev/kalystrum-runners/runner-ci-1/home
+├── runner-ci-2/                ← CI Runner 2 (isolated $HOME)
+├── runner-ci-3/                ← CI Runner 3 (isolated $HOME)
+├── runner-pr-1/                ← PR Runner 1 (isolated $HOME)
+├── runner-pr-2/                ← PR Runner 2 (isolated $HOME)
+├── runner-pr-3/                ← PR Runner 3 (isolated $HOME)
+├── runner-deploy-1/            ← Deploy Runner 1 (isolated $HOME)
+├── runner-deploy-2/            ← Deploy Runner 2 (isolated $HOME)
+├── runner-deploy-3/            ← Deploy Runner 3 (isolated $HOME)
+├── run-ephemeral-loop.sh       ← Ephemeral registration & execution loop
+├── start-all.sh                ← Master initialization & startup script
+├── stop-all.sh                 ← Graceful teardown script
+├── status.sh                   ← Process & log monitoring script
+└── logs/                       ← Real-time execution logs for all 9 runners
+    ├── macos-ci-1.log
+    ├── macos-ci-2.log
+    └── ...
 ```
 
 ---
 
-## Prerequisites
+## 🚀 Setup Guide from Scratch
 
-### System Requirements
-
-- macOS (M1/M2/M3 ARM64 recommended)
-- 4GB+ available RAM
-- GitHub organization admin access
-- GitHub CLI installed: `brew install gh`
-
-### GitHub Setup
-
-1. **Generate Personal Access Token (Classic)**
-    - Go to: https://github.com/settings/tokens
-    - Scopes needed:
-        - ✅ `repo` (full control of private repositories)
-        - ✅ `workflow` (update GitHub Action workflows)
-        - ✅ `admin:org` (full control of orgs and teams)
-    - Save token securely
-
-2. **Authenticate GitHub CLI**
-    ```bash
-    gh auth login
-    # Follow prompts to authenticate
-    ```
-
----
-
-## Setup Instructions
-
-### Step 1: Get 9 Runner Registration Tokens
-
-Go to: **GitHub → Kalystrum org → Settings → Actions → Runners → "New self-hosted runner"**
-
-Click **9 times** to create 9 tokens. Each token is **one-time use** and expires after 1 hour.
-
-**Save all 9 tokens in a safe place** (you'll use them in Step 4).
-
-### Step 2: Verify Original Runner
-
-Check your existing runner:
+<div style="background: #eef9fd; border-left: 5px solid #0366d6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #0366d6;">Step 1: Install & Authenticate GitHub CLI</h3>
+    <p>Ensure <code>gh</code> CLI is installed and authenticated with your organization admin permissions:</p>
+</div>
 
 ```bash
-ls -la /Users/ankitanand/Ransh-Dev/github-runner
-# Should show: config.sh, run.sh, bin/, etc.
+# Install GitHub CLI via Homebrew
+brew install gh
+
+# Authenticate with GitHub
+gh auth login
+
+# Verify account and required scopes (admin:org, repo, workflow)
+gh auth status
 ```
 
-### Step 3: Create 9 Runner Directories
+<div style="background: #eef9fd; border-left: 5px solid #0366d6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #0366d6;">Step 2: Create Base Runner Directory & Download Binaries</h3>
+</div>
 
 ```bash
-mkdir -p /Users/ankitanand/Ransh-Dev/github-runners/{runner-ci-{1,2,3},runner-pr-{1,2,3},runner-deploy-{1,2,3}}
-```
+# Create dedicated org runners folder
+mkdir -p /Users/ankitanand/Ransh-Dev/kalystrum-runners/logs
 
-### Step 4: Extract Runner Files to Each Directory
-
-```bash
+# Download runner tarball into cache directory (if not already downloaded)
+mkdir -p /Users/ankitanand/Ransh-Dev/github-runner
 cd /Users/ankitanand/Ransh-Dev/github-runner
-
-# Get the tar file
-RUNNER_FILE=$(ls actions-runner-osx-arm64*.tar.gz | head -1)
-echo "Using: $RUNNER_FILE"
-
-# Extract to each of the 9 directories
-for i in 1 2 3; do
-  # CI runners
-  cd /Users/ankitanand/Ransh-Dev/github-runners/runner-ci-$i
-  tar xzf /Users/ankitanand/Ransh-Dev/github-runner/$RUNNER_FILE
-
-  # PR runners
-  cd /Users/ankitanand/Ransh-Dev/github-runners/runner-pr-$i
-  tar xzf /Users/ankitanand/Ransh-Dev/github-runner/$RUNNER_FILE
-
-  # Deploy runners
-  cd /Users/ankitanand/Ransh-Dev/github-runners/runner-deploy-$i
-  tar xzf /Users/ankitanand/Ransh-Dev/github-runner/$RUNNER_FILE
-done
-
-echo "✅ All 9 directories extracted"
+curl -o actions-runner-osx-arm64.tar.gz -L https://github.com/actions/runner/releases/download/v2.336.0/actions-runner-osx-arm64-2.336.0.tar.gz
 ```
 
-### Step 5: Register All 9 Runners
-
-Create registration script:
+<div style="background: #eef9fd; border-left: 5px solid #0366d6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #0366d6;">Step 3: Create the Ephemeral Runner Loop Script</h3>
+    <p>Create <code>/Users/ankitanand/Ransh-Dev/kalystrum-runners/run-ephemeral-loop.sh</code>:</p>
+</div>
 
 ```bash
-cat > /Users/ankitanand/Ransh-Dev/github-runners/register.sh << 'EOF'
+cat > /Users/ankitanand/Ransh-Dev/kalystrum-runners/run-ephemeral-loop.sh << 'EOF'
 #!/bin/bash
+RUNNER_DIR="$1"
+RUNNER_NAME="$2"
+LABELS="$3"
 
-declare -a RUNNERS=(
-  "ci:1"
-  "ci:2"
-  "ci:3"
-  "pr:1"
-  "pr:2"
-  "pr:3"
-  "deploy:1"
-  "deploy:2"
-  "deploy:3"
-)
+if [ -z "$RUNNER_DIR" ] || [ -z "$RUNNER_NAME" ] || [ -z "$LABELS" ]; then
+    echo "Usage: $0 <runner_dir> <runner_name> <labels>"
+    exit 1
+fi
 
-echo "🚀 Registering 9 Self-Hosted Runners"
-echo "===================================="
-echo ""
+mkdir -p "$RUNNER_DIR/home"
+cat > "$RUNNER_DIR/.env" <<EOT
+HOME=$RUNNER_DIR/home
+EOT
 
-COUNT=1
-for RUNNER_CONFIG in "${RUNNERS[@]}"; do
-  IFS=':' read -r WORKLOAD NUM <<< "$RUNNER_CONFIG"
-  RUNNER_NAME="macos-${WORKLOAD}-${NUM}"
-  RUNNER_DIR="/Users/ankitanand/Ransh-Dev/github-runners/runner-${WORKLOAD}-${NUM}"
+echo "🚀 Starting isolated ephemeral loop for $RUNNER_NAME (labels: $LABELS)..."
 
-  echo "[$COUNT/9] 📦 $RUNNER_NAME"
-  echo "  Go to GitHub → Kalystrum → Settings → Actions → Runners"
-  echo "  Click 'New self-hosted runner' and copy the registration token"
-  read -sp "  Paste registration token: " TOKEN
-  echo ""
+while true; do
+    cd "$RUNNER_DIR" || exit 1
 
-  cd "$RUNNER_DIR"
-  ./config.sh --url https://github.com/Kalystrum \
-    --token "$TOKEN" \
-    --name "$RUNNER_NAME" \
-    --unattended
+    # Cleanup leftover workspace state from previous job
+    rm -rf _work _diag .runner .credentials .credentials_rsaparams 2>/dev/null || true
+    mkdir -p home
 
-  if [ $? -eq 0 ]; then
-    echo "  ✅ Registered: $RUNNER_NAME"
-  else
-    echo "  ❌ Failed: $RUNNER_NAME"
-  fi
-  echo ""
+    # Auto-fetch fresh registration token via gh CLI
+    TOKEN=$(gh api -X POST /orgs/Kalystrum/actions/runners/registration-token --jq '.token' 2>/dev/null)
+    if [ -z "$TOKEN" ]; then
+        echo "[$(date)] ⚠️ Failed to fetch token for $RUNNER_NAME. Retrying in 10s..."
+        sleep 10
+        continue
+    fi
 
-  COUNT=$((COUNT + 1))
+    # Register runner with --ephemeral and --replace flags
+    ./config.sh --url https://github.com/Kalystrum \
+        --token "$TOKEN" \
+        --name "$RUNNER_NAME" \
+        --labels "$LABELS" \
+        --ephemeral \
+        --unattended \
+        --replace > /dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+        echo "[$(date)] ✅ Registered $RUNNER_NAME. Listening for job..."
+        ./run.sh
+        echo "[$(date)] 🔄 Job finished or runner exited for $RUNNER_NAME. Cleaning up for next job..."
+    else
+        echo "[$(date)] ❌ Registration failed for $RUNNER_NAME. Retrying in 10s..."
+        sleep 10
+    fi
+
+    sleep 2
 done
-
-echo "✅ All 9 runners registered!"
 EOF
 
-chmod +x /Users/ankitanand/Ransh-Dev/github-runners/register.sh
+chmod +x /Users/ankitanand/Ransh-Dev/kalystrum-runners/run-ephemeral-loop.sh
 ```
 
-Run registration:
-
-```bash
-/Users/ankitanand/Ransh-Dev/github-runners/register.sh
-```
-
-You'll be prompted 9 times - paste each registration token when asked.
-
----
-
-## Running the Runners
-
-### Create Logs Directory
-
-```bash
-mkdir -p /Users/ankitanand/Ransh-Dev/github-runners/logs
-```
-
-### Start All 9 Runners in Background
-
-```bash
-echo "🚀 Starting all 9 runners..."
-
-for dir in /Users/ankitanand/Ransh-Dev/github-runners/runner-*/; do
-  cd "$dir"
-  RUNNER_NAME=$(basename "$dir")
-  nohup ./run.sh > /Users/ankitanand/Ransh-Dev/github-runners/logs/${RUNNER_NAME}.log 2>&1 &
-  echo "✅ Started: $RUNNER_NAME"
-  sleep 1
-done
-
-echo ""
-echo "✅ All 9 runners started in background!"
-echo ""
-echo "Monitor logs:"
-echo "  tail -f /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log"
-echo ""
-echo "Verify in GitHub:"
-echo "  https://github.com/organizations/Kalystrum/settings/actions/runners"
-```
-
-### Verify Runners Connected
-
-```bash
-# Check running processes
-ps aux | grep "./run.sh" | grep -v grep | wc -l
-# Should show: 9
-
-# Check logs for "Listening for Jobs"
-tail -5 /Users/ankitanand/Ransh-Dev/github-runners/logs/runner-ci-1.log
-# Should show: "Listening for Jobs"
-```
-
-### Verify in GitHub UI
-
-Go to: **GitHub → Settings → Actions → Runners**
-
-All 9 runners should show:
-
-- ✅ `macos-ci-1`, `macos-ci-2`, `macos-ci-3`
-- ✅ `macos-pr-1`, `macos-pr-2`, `macos-pr-3`
-- ✅ `macos-deploy-1`, `macos-deploy-2`, `macos-deploy-3`
-- All with status: **"Idle"** (green)
-
----
-
-## Quick Commands
-
-### Start All Runners
-
-```bash
-for dir in /Users/ankitanand/Ransh-Dev/github-runners/runner-*/; do
-  cd "$dir"
-  nohup ./run.sh > ../logs/$(basename $dir).log 2>&1 &
-  sleep 1
-done
-```
-
-### Stop All Runners
-
-```bash
-pkill -f "./run.sh"
-```
-
-### Check Status
-
-```bash
-# Count running runners
-ps aux | grep "./run.sh" | grep -v grep | wc -l
-
-# List runners
-ps aux | grep "./run.sh" | grep -v grep
-```
-
-### View Logs
-
-```bash
-# All runners real-time
-tail -f /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log
-
-# Specific runner
-tail -50 /Users/ankitanand/Ransh-Dev/github-runners/logs/runner-ci-1.log
-
-# Last 5 lines
-tail -5 /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log
-
-# Search for errors
-grep -i "error\|failed" /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log
-```
-
-### Restart All Runners
-
-```bash
-pkill -f "./run.sh"
-sleep 2
-
-for dir in /Users/ankitanand/Ransh-Dev/github-runners/runner-*/; do
-  cd "$dir"
-  nohup ./run.sh > ../logs/$(basename $dir).log 2>&1 &
-  sleep 1
-done
-
-# Verify
-sleep 10
-ps aux | grep "./run.sh" | grep -v grep | wc -l
-```
-
-### Restart Specific Runner
-
-```bash
-# Example: restart CI runner 1
-pkill -f "runner-ci-1"
-sleep 2
-
-cd /Users/ankitanand/Ransh-Dev/github-runners/runner-ci-1
-nohup ./run.sh > ../logs/runner-ci-1.log 2>&1 &
-
-# Verify
-sleep 5
-tail -10 /Users/ankitanand/Ransh-Dev/github-runners/logs/runner-ci-1.log
-```
-
-### Check System Resources
-
-```bash
-# Memory usage
-top -l 1 | head -20
-
-# Disk space
-df -h | grep "/Users"
-
-# Load average
-uptime
-```
-
----
-
-## Workflow Configuration
-
-All workflows updated to use `self-hosted` runner label.
-
-### CI Workflow
-
-**File:** `.github/.github/workflows/ci.yml`
-
-```yaml
-runs-on: [self-hosted, ubuntu-latest]
-```
-
-### PR Description
-
-**File:** `.github/.github/workflows/pr-description.yml`
-
-```yaml
-runs-on: [self-hosted, ubuntu-latest]
-```
-
-### Branch Policy
-
-**File:** `.github/.github/workflows/branch-policy.yml`
-
-```yaml
-runs-on: [self-hosted, ubuntu-latest]
-```
-
-### Cloudflare Deployment
-
-**File:** `atrium/.github/workflows/cloudflare-deployment-production.yml`
-
-```yaml
-runs-on: [self-hosted, ubuntu-latest]
-```
-
-### How Job Matching Works
-
-1. Job requests: `runs-on: [self-hosted, ubuntu-latest]`
-2. GitHub looks for runner with `self-hosted` label
-3. **9 runners available** → first available runner picks up job
-4. Multiple jobs run in parallel on different runners
-5. If all runners busy → falls back to `ubuntu-latest` (GitHub-hosted)
-
----
-
-## Troubleshooting
-
-### Jobs Waiting But Runners Idle
-
-**Problem:** Job stays in queue even with idle runners showing
-
-**Solution:**
-
-```bash
-# Restart all runners
-pkill -f "./run.sh"
-sleep 2
-
-for dir in /Users/ankitanand/Ransh-Dev/github-runners/runner-*/; do
-  cd "$dir"
-  nohup ./run.sh > ../logs/$(basename $dir).log 2>&1 &
-done
-
-# Wait for reconnection
-sleep 10
-
-# Verify all connected
-tail -5 /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log | grep "Listening"
-```
-
-### Runner Showing Offline
-
-**Problem:** Runner shows "Offline" in GitHub UI
-
-**Solution:**
-
-```bash
-# Check if running
-ps aux | grep "./run.sh" | grep -v grep | grep runner-ci-1
-
-# Check logs
-tail -20 /Users/ankitanand/Ransh-Dev/github-runners/logs/runner-ci-1.log
-
-# Restart specific runner
-pkill -f "runner-ci-1"
-sleep 2
-cd /Users/ankitanand/Ransh-Dev/github-runners/runner-ci-1
-nohup ./run.sh > ../logs/runner-ci-1.log 2>&1 &
-```
-
-### Runner Process Crashes
-
-**Problem:** Runners crash immediately on start
-
-**Solution:**
-
-```bash
-# Check logs for errors
-tail -50 /Users/ankitanand/Ransh-Dev/github-runners/logs/runner-ci-1.log
-
-# Check configuration
-cat /Users/ankitanand/Ransh-Dev/github-runners/runner-ci-1/.runner
-
-# Re-register if needed
-cd /Users/ankitanand/Ransh-Dev/github-runners/runner-ci-1
-./config.sh remove
-# Get new token and re-register
-```
-
-### High Memory Usage
-
-**Problem:** Runners consuming excessive memory
-
-**Solution:**
-
-```bash
-# Check memory usage
-ps aux | sort -k4 -r | head -10
-
-# Restart all runners (clears memory)
-pkill -f "./run.sh"
-sleep 3
-
-for dir in /Users/ankitanand/Ransh-Dev/github-runners/runner-*/; do
-  cd "$dir"
-  nohup ./run.sh > ../logs/$(basename $dir).log 2>&1 &
-done
-```
-
-### Runners Not Appearing in GitHub
-
-**Problem:** Runners registered but not showing in GitHub UI
-
-**Solution:**
-
-```bash
-# Verify running
-ps aux | grep "./run.sh" | grep -v grep | wc -l
-
-# Check logs
-grep "Connected to GitHub" /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log
-
-# Restart and wait for reconnection
-pkill -f "./run.sh"
-sleep 2
-
-for dir in /Users/ankitanand/Ransh-Dev/github-runners/runner-*/; do
-  cd "$dir"
-  nohup ./run.sh > ../logs/$(basename $dir).log 2>&1 &
-done
-
-# Wait 30 seconds and check GitHub UI
-sleep 30
-```
-
----
-
-## Maintenance
-
-### Daily Checks
-
-- ✅ Runners still online: `ps aux | grep "./run.sh" | wc -l` (should be 9)
-- ✅ No errors in logs: `grep -i "error" /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log`
-- ✅ GitHub UI shows all 9 green
-
-### Weekly Checks
-
-- Review runner logs for issues
-- Test a CI job to verify everything works
-- Check disk space: `df -h`
-- Verify no memory leaks
-
-### Monthly Maintenance
-
-- Clean old logs: `rm /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log`
-- Review system performance
-- Update runner software (auto-updates, verify in logs)
-
-### Stopping Runners
-
-```bash
-pkill -f "./run.sh"
-# Verify: should show nothing
-ps aux | grep "./run.sh" | grep -v grep
-```
-
----
-
-## Performance Metrics
-
-### Before vs After
-
-| Metric            | Before   | After   | Improvement    |
-| ----------------- | -------- | ------- | -------------- |
-| Lint Job          | 30s      | 30s     | -              |
-| Format Job        | 30s      | 30s     | -              |
-| Types Job         | 30s      | 30s     | -              |
-| Tests Job         | 60s      | 60s     | -              |
-| **Total CI Time** | **180s** | **60s** | **66% faster** |
-
-### Resource Usage
-
-| Metric             | Usage             |
-| ------------------ | ----------------- |
-| Per Runner (idle)  | 100-200MB RAM     |
-| 9 Runners Total    | 1-2GB RAM         |
-| CPU (idle)         | <5%               |
-| CPU (running jobs) | Spikes to 80-100% |
-| Disk (logs/month)  | ~100MB            |
-
----
-
-## Reference Links
-
-```html
-<div
-    style="background: #f9f9f9; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px;"
->
-    <h4 style="margin-top: 0;">🔗 Quick Links</h4>
-    <ul style="margin: 10px 0; padding-left: 20px;">
-        <li>
-            <a
-                href="https://github.com/organizations/Kalystrum/settings/actions/runners"
-                >GitHub Runners Settings</a
-            >
-        </li>
-        <li>
-            <a href="https://github.com/Kalystrum/atrium/actions"
-                >GitHub Actions (atrium)</a
-            >
-        </li>
-        <li>
-            <a href="https://github.com/Kalystrum/.github"
-                >GitHub Shared Workflows Repo</a
-            >
-        </li>
-    </ul>
+<div style="background: #eef9fd; border-left: 5px solid #0366d6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #0366d6;">Step 4: Create Master Launch Script (`start-all.sh`)</h3>
+    <p>Create <code>/Users/ankitanand/Ransh-Dev/kalystrum-runners/start-all.sh</code>:</p>
 </div>
+
+```bash
+cat > /Users/ankitanand/Ransh-Dev/kalystrum-runners/start-all.sh << 'EOF'
+#!/bin/bash
+BASE_DIR="/Users/ankitanand/Ransh-Dev/kalystrum-runners"
+TARBALL="/Users/ankitanand/Ransh-Dev/github-runner/actions-runner-osx-arm64.tar.gz"
+
+if [ ! -f "$TARBALL" ]; then
+    echo "❌ Error: Tarball not found at $TARBALL"
+    exit 1
+fi
+
+chmod +x "$BASE_DIR/run-ephemeral-loop.sh"
+mkdir -p "$BASE_DIR/logs"
+
+declare -a RUNNERS=(
+    "runner-ci-1:macos-ci-1:macos-ci"
+    "runner-ci-2:macos-ci-2:macos-ci"
+    "runner-ci-3:macos-ci-3:macos-ci"
+    "runner-pr-1:macos-pr-1:macos-pr"
+    "runner-pr-2:macos-pr-2:macos-pr"
+    "runner-pr-3:macos-pr-3:macos-pr"
+    "runner-deploy-1:macos-deploy-1:macos-deploy"
+    "runner-deploy-2:macos-deploy-2:macos-deploy"
+    "runner-deploy-3:macos-deploy-3:macos-deploy"
+)
+
+echo "🚀 Starting 9 Isolated Ephemeral Runners for Kalystrum..."
+echo "========================================================="
+
+for ENTRY in "${RUNNERS[@]}"; do
+    IFS=':' read -r DIR_NAME RUNNER_NAME LABELS <<< "$ENTRY"
+    RUNNER_DIR="$BASE_DIR/$DIR_NAME"
+
+    mkdir -p "$RUNNER_DIR"
+    if [ ! -f "$RUNNER_DIR/config.sh" ]; then
+        echo "📦 Extracting binaries for $RUNNER_NAME..."
+        tar xzf "$TARBALL" -C "$RUNNER_DIR"
+    fi
+
+    mkdir -p "$RUNNER_DIR/home"
+    cat > "$RUNNER_DIR/.env" <<EOT
+HOME=$RUNNER_DIR/home
+EOT
+
+    pkill -f "$RUNNER_DIR/run-ephemeral-loop.sh" 2>/dev/null || true
+    nohup "$BASE_DIR/run-ephemeral-loop.sh" "$RUNNER_DIR" "$RUNNER_NAME" "$LABELS" > "$BASE_DIR/logs/$RUNNER_NAME.log" 2>&1 &
+
+    echo "✅ Started background loop for $RUNNER_NAME (labels: $LABELS)"
+    sleep 1
+done
+
+echo ""
+echo "🎉 All 9 isolated runners started!"
+EOF
+
+chmod +x /Users/ankitanand/Ransh-Dev/kalystrum-runners/start-all.sh
+```
+
+<div style="background: #eef9fd; border-left: 5px solid #0366d6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #0366d6;">Step 5: Create Management Scripts (`stop-all.sh` & `status.sh`)</h3>
+</div>
+
+```bash
+# Create stop script
+cat > /Users/ankitanand/Ransh-Dev/kalystrum-runners/stop-all.sh << 'EOF'
+#!/bin/bash
+echo "🛑 Stopping all Kalystrum runner loops and processes..."
+pkill -f "kalystrum-runners/run-ephemeral-loop.sh" 2>/dev/null || true
+pkill -f "Runner.Listener" 2>/dev/null || true
+echo "✅ All runners stopped."
+EOF
+
+# Create status script
+cat > /Users/ankitanand/Ransh-Dev/kalystrum-runners/status.sh << 'EOF'
+#!/bin/bash
+BASE_DIR="/Users/ankitanand/Ransh-Dev/kalystrum-runners"
+
+echo "📊 Kalystrum Self-Hosted Runner Status"
+echo "========================================"
+echo ""
+echo "Active Loop Processes:"
+ps aux | grep "run-ephemeral-loop.sh" | grep -v grep
+echo ""
+echo "Recent Logs Summary:"
+tail -n 3 "$BASE_DIR"/logs/*.log 2>/dev/null
+EOF
+
+chmod +x /Users/ankitanand/Ransh-Dev/kalystrum-runners/*.sh
+```
+
+<div style="background: #eef9fd; border-left: 5px solid #0366d6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+    <h3 style="margin-top: 0; color: #0366d6;">Step 6: Launch Runners</h3>
+</div>
+
+```bash
+/Users/ankitanand/Ransh-Dev/kalystrum-runners/start-all.sh
 ```
 
 ---
 
-## Support & Help
+## 📊 Workflow Label Configuration Matrix
 
-For issues:
-
-1. **Check logs:** `tail -100 /Users/ankitanand/Ransh-Dev/github-runners/logs/*.log`
-2. **Verify runners:** `ps aux | grep "./run.sh" | grep -v grep | wc -l`
-3. **Check GitHub:** Settings → Actions → Runners
-4. **Restart:** Use "Restart All Runners" command above
+<div style="background: #ffffff; border: 1px solid #e1e4e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #24292e; color: #ffffff; text-align: left;">
+                <th style="padding: 12px;">Workflow</th>
+                <th style="padding: 12px;">File Path</th>
+                <th style="padding: 12px;">Required YAML Label</th>
+                <th style="padding: 12px;">Assigned Runner Pool</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="border-bottom: 1px solid #e1e4e8;">
+                <td style="padding: 12px;"><strong>CI Checks</strong></td>
+                <td style="padding: 12px;"><code>.github/.github/workflows/ci.yml</code></td>
+                <td style="padding: 12px;"><code>runs-on: [self-hosted, macos-ci]</code></td>
+                <td style="padding: 12px;"><code>macos-ci-1..3</code></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e1e4e8;">
+                <td style="padding: 12px;"><strong>Branch Policy</strong></td>
+                <td style="padding: 12px;"><code>.github/.github/workflows/branch-policy.yml</code></td>
+                <td style="padding: 12px;"><code>runs-on: [self-hosted, macos-pr]</code></td>
+                <td style="padding: 12px;"><code>macos-pr-1..3</code></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e1e4e8;">
+                <td style="padding: 12px;"><strong>PR Description</strong></td>
+                <td style="padding: 12px;"><code>.github/.github/workflows/pr-description.yml</code></td>
+                <td style="padding: 12px;"><code>runs-on: [self-hosted, macos-pr]</code></td>
+                <td style="padding: 12px;"><code>macos-pr-1..3</code></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e1e4e8;">
+                <td style="padding: 12px;"><strong>Cloudflare Deploy</strong></td>
+                <td style="padding: 12px;"><code>atrium/.github/workflows/cloudflare-deployment-production.yml</code></td>
+                <td style="padding: 12px;"><code>runs-on: [self-hosted, macos-deploy]</code></td>
+                <td style="padding: 12px;"><code>macos-deploy-1..3</code></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
 
 ---
 
-**Last Updated:** August 7, 2026  
-**Setup by:** Claude Code  
-**Status:** ✅ 9 runners configured and operational
+## ⚡ Quick Management Commands
+
+<div style="background: #f6f8fa; border: 1px solid #d1d5da; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <h4 style="margin-top: 0; color: #24292e;">⚡ Terminal Command Cheatsheet</h4>
+    <pre style="background: #24292e; color: #f6f8fa; padding: 15px; border-radius: 6px; overflow-x: auto;">
+<code># 1. Check local process status
+/Users/ankitanand/Ransh-Dev/kalystrum-runners/status.sh
+
+# 2. View live runner logs
+
+tail -f /Users/ankitanand/Ransh-Dev/kalystrum-runners/logs/*.log
+
+# 3. Check registered org runners status via GitHub API
+
+gh api /orgs/Kalystrum/actions/runners --jq '.runners[] | {name, status, labels: [.labels[].name]}'
+
+# 4. Stop all local runners
+
+/Users/ankitanand/Ransh-Dev/kalystrum-runners/stop-all.sh
+
+# 5. Restart all local runners
+
+/Users/ankitanand/Ransh-Dev/kalystrum-runners/start-all.sh</code>
+</pre>
+</div>
