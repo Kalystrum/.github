@@ -29,7 +29,7 @@ jobs:
         # Fork PRs don't get repo secrets on the `pull_request` event (this repo is public),
         # so the API call below would just fail with a 401. Skip them instead of burning a red X.
         if: github.event.pull_request.head.repo.full_name == github.repository
-        runs-on: [self-hosted]
+        runs-on: [self-hosted, macos-pr]
         timeout-minutes: 30
         continue-on-error: true
         outputs:
@@ -41,6 +41,8 @@ jobs:
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+                  clean: true
+                  set-safe-directory: false
                   ref: ${{ github.event.pull_request.base.sha }}
                   token: ${{ secrets.KALYSTRUM_WORKFLOW_TOKEN || github.token }}
 
@@ -57,6 +59,8 @@ jobs:
               with:
                   repository: Kalystrum/.github
                   ref: ${{ steps.shared-ref.outputs.ref }}
+                  clean: true
+                  set-safe-directory: false
                   path: .github-shared
                   sparse-checkout: |
                       .github/schemas
